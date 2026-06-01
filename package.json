@@ -1,0 +1,16 @@
+{
+  "name": "medical-zk",
+  "version": "1.0.0",
+  "description": "Cold Chain Verification using Zero-Knowledge Proofs",
+  "private": true,
+  "scripts": {
+    "setup": "bash scripts/setup-circuit.sh",
+    "generate-verifier": "bash scripts/generate-verifier.sh",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run dev",
+    "install:all": "cd backend && npm install && cd ../frontend && npm install && cd ../circuits && npm install circomlib",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "install:contracts": "cd contracts && npm install"
+  }
+}
