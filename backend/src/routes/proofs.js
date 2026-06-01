@@ -4,6 +4,7 @@ const express = require("express");
 const { v4: uuidv4 } = require("uuid");
 const db = require("../db/database");
 const { generateProof, verifyProof } = require("../services/zkProver");
+const { submitProofOnChain, isVerifiedOnChain } = require("../services/onChain");
 
 const router = express.Router();
 
@@ -70,46 +71,52 @@ router.post("/generate/:shipmentId", async (req, res) => {
 
     const { proof, publicSignals, commitment, timeMs } = proofResult;
 
-    // Verify the proof immediately
+    // Off-chain verify (fast, no gas)
     const isValid = await verifyProof(proof, publicSignals);
 
-    // Upsert proof record
+    // On-chain submit — contract runs Groth16 pairing check itself
+    let onChainResult = null;
+    try {
+      onChainResult = await submitProofOnChain(proof, publicSignals, shipment.medicine_name);
+    } catch (chainErr) {
+      console.warn("On-chain submission failed (chain may be down):", chainErr.message);
+    }
+
+    const now = new Date().toISOString();
     const existingProof = db
       .prepare("SELECT id FROM proofs WHERE shipment_id = ?")
       .get(shipmentId);
 
+    const txHash      = onChainResult?.txHash      || null;
+    const blockNumber = onChainResult?.blockNumber  || null;
+    const onChainVerified = onChainResult?.onChainVerified ?? null;
+
     if (existingProof) {
       db.prepare(
-        `UPDATE proofs SET proof_json=?, public_signals=?, commitment=?, verified=?, generation_time_ms=?, created_at=? WHERE shipment_id=?`
+        `UPDATE proofs SET proof_json=?, public_signals=?, commitment=?, verified=?, generation_time_ms=?,
+         tx_hash=?, block_number=?, on_chain_verified=?, created_at=? WHERE shipment_id=?`
       ).run(
-        JSON.stringify(proof),
-        JSON.stringify(publicSignals),
-        commitment,
-        isValid ? 1 : 0,
-        timeMs,
-        new Date().toISOString(),
-        shipmentId
+        JSON.stringify(proof), JSON.stringify(publicSignals), commitment,
+        isValid ? 1 : 0, timeMs, txHash, blockNumber,
+        onChainVerified === null ? null : (onChainVerified ? 1 : 0),
+        now, shipmentId
       );
     } else {
       db.prepare(
-        `INSERT INTO proofs (id, shipment_id, proof_json, public_signals, commitment, verified, generation_time_ms, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO proofs
+           (id, shipment_id, proof_json, public_signals, commitment, verified,
+            generation_time_ms, tx_hash, block_number, on_chain_verified, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).run(
-        uuidv4(),
-        shipmentId,
-        JSON.stringify(proof),
-        JSON.stringify(publicSignals),
-        commitment,
-        isValid ? 1 : 0,
-        timeMs,
-        new Date().toISOString()
+        uuidv4(), shipmentId, JSON.stringify(proof), JSON.stringify(publicSignals),
+        commitment, isValid ? 1 : 0, timeMs, txHash, blockNumber,
+        onChainVerified === null ? null : (onChainVerified ? 1 : 0),
+        now
       );
     }
 
-    // Update shipment status
     db.prepare("UPDATE shipments SET status = ? WHERE id = ?").run(
-      isValid ? "verified" : "failed",
-      shipmentId
+      isValid ? "verified" : "failed", shipmentId
     );
 
     res.json({
@@ -119,6 +126,12 @@ router.post("/generate/:shipmentId", async (req, res) => {
       commitment,
       verified: isValid,
       generationTimeMs: timeMs,
+      onChain: onChainResult ? {
+        txHash:      onChainResult.txHash,
+        blockNumber: onChainResult.blockNumber,
+        verified:    onChainResult.onChainVerified,
+        contract:    onChainResult.contractAddress,
+      } : null,
     });
   } catch (err) {
     console.error(

@@ -47,6 +47,9 @@ db.exec(`
     commitment TEXT NOT NULL,
     verified INTEGER NOT NULL DEFAULT 0,
     generation_time_ms INTEGER,
+    tx_hash TEXT,
+    block_number INTEGER,
+    on_chain_verified INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (shipment_id) REFERENCES shipments(id) ON DELETE CASCADE
   );
