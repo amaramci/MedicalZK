@@ -25,10 +25,10 @@ template ColdChain(N) {
     signal accum[N+1];
     accum[0] <== 1;
 
-    // LessEqThan needs bit width - 20 bits covers 0..1048575
-    // Temps scaled by 100: range is e.g. -10000 to +10000 but we shift to positive
-    // We add 10000 offset so that -100°C becomes 0 and +100°C becomes 20000
-    // N_BITS = 17 covers 0..131071 which is enough for offset temps
+    // LessEqThan is unsigned — backend applies CIRCUIT_OFFSET=4000 before calling circuit:
+    //   -40°C * 100 + 4000 = 0   (floor)
+    //   +50°C * 100 + 4000 = 9000 (ceiling)
+    // LessEqThan(17) supports 0..131071, so 9000 fits comfortably.
 
     component gtMin[N];   // reading >= minTemp  ⟺  minTemp <= reading
     component ltMax[N];   // reading <= maxTemp  ⟺  reading <= maxTemp

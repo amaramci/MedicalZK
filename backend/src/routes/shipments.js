@@ -42,11 +42,22 @@ router.post("/", (req, res) => {
       medicine_name,
       origin,
       destination,
-      min_temp = -20,
-      max_temp = 8,
-      reading_count = 10,
-      simulate_violation = false,
+      // accept both snake_case and camelCase
+      min_temp,
+      max_temp,
+      minTemp,
+      maxTemp,
+      reading_count,
+      readingCount,
+      simulate_violation,
+      simulateViolation,
+      shouldViolate: shouldViolateParam,
     } = req.body;
+
+    const rawMin  = min_temp  ?? minTemp  ?? 2;
+    const rawMax  = max_temp  ?? maxTemp  ?? 8;
+    const rawCount = reading_count ?? readingCount ?? 10;
+    const shouldViolate = simulate_violation ?? simulateViolation ?? shouldViolateParam ?? false;
 
     if (!name || !medicine_name || !origin || !destination) {
       return res.status(400).json({
@@ -55,18 +66,25 @@ router.post("/", (req, res) => {
       });
     }
 
-    // Circuit uses N=10; clamp user request to 10
-    const count = Math.min(Math.max(parseInt(reading_count, 10) || 10, 10), 10);
+    if (rawMin < -40 || rawMax > 50 || rawMin >= rawMax) {
+      return res.status(400).json({
+        success: false,
+        error: "Temperature range must be within [-40, +50]°C and minTemp < maxTemp",
+      });
+    }
 
-    // Scale temps by 100 for storage
-    const minScaled = Math.round(min_temp * 100);
-    const maxScaled = Math.round(max_temp * 100);
+    // Circuit uses N=10; clamp user request to 10
+    const count = Math.min(Math.max(parseInt(rawCount, 10) || 10, 10), 10);
+
+    // Scale temps by 100 for storage (no circuit offset here — offset applied in zkProver)
+    const minScaled = Math.round(rawMin * 100);
+    const maxScaled = Math.round(rawMax * 100);
 
     const { temperatures, hasViolation } = generateShipmentTemperatures(
       count,
-      min_temp,
-      max_temp,
-      simulate_violation
+      rawMin,
+      rawMax,
+      shouldViolate
     );
 
     const shipmentId = uuidv4();

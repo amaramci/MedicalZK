@@ -9,6 +9,13 @@ const WASM_PATH = path.join(BUILD_DIR, "cold_chain_js/cold_chain.wasm");
 const ZKEY_PATH = path.join(BUILD_DIR, "cold_chain_0001.zkey");
 const VKEY_PATH = path.join(BUILD_DIR, "verification_key.json");
 
+// Circuit only works with non-negative integers (LessEqThan is unsigned).
+// We shift every scaled temperature by this offset before sending to the circuit:
+//   -40°C * 100 + OFFSET = -4000 + 4000 = 0   (minimum allowed)
+//   +50°C * 100 + OFFSET =  5000 + 4000 = 9000 (maximum allowed)
+// Values are never negative in the circuit and always well within 2^17 = 131072.
+const CIRCUIT_OFFSET = 4000;
+
 let _verificationKey = null;
 let _poseidon = null;
 
@@ -46,11 +53,12 @@ function getVerificationKey() {
  * @param {number[]} temperatures - Scaled integer temperatures
  * @returns {Promise<string>}
  */
+// Compute Poseidon hash over the OFFSET values — this must match what the circuit sees.
 async function computeCommitment(temperatures) {
   const poseidon = await getPoseidon();
   const F = poseidon.F;
 
-  const inputs = temperatures.map((t) => BigInt(t));
+  const inputs = temperatures.map((t) => BigInt(t + CIRCUIT_OFFSET));
   const hashBuf = poseidon(inputs);
   const hashBigInt = F.toObject(hashBuf);
 
@@ -74,10 +82,11 @@ async function generateProof(temperatures, minTemp, maxTemp) {
 
   const commitment = await computeCommitment(temperatures);
 
+  // Apply offset so all values entering the circuit are non-negative.
   const input = {
-    readings: temperatures.map((t) => t.toString()),
-    minTemp: minTemp.toString(),
-    maxTemp: maxTemp.toString(),
+    readings: temperatures.map((t) => (t + CIRCUIT_OFFSET).toString()),
+    minTemp: (minTemp + CIRCUIT_OFFSET).toString(),
+    maxTemp: (maxTemp + CIRCUIT_OFFSET).toString(),
     commitment,
   };
 
