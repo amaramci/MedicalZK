@@ -1,12 +1,12 @@
-# MedicalZK — Cold Chain Verification
+# MedicalZK - Cold Chain Verification
 
-Sustav za dokazivanje integriteta lanca hladnjače koristeći Zero-Knowledge dokaze. Transporteri mogu dokazati da lijek **nije bio izložen nedozvoljenim temperaturama** tokom transporta, bez otkrivanja stvarnih vrijednosti mjerenja.
+A system for proving cold chain integrity using Zero-Knowledge proofs. Carriers can prove that a drug **was never exposed to out-of-range temperatures** during transport, without revealing the actual sensor readings.
 
-Groth16 dokaz se verificira direktno na blockchainu — nema povjerenja u posrednika.
+The Groth16 proof is verified directly on-chain — no trusted intermediary required.
 
-## Pokretanje
+## Running the project
 
-**1. Kompajlirati ugovor i pokrenuti lokalni chain**
+**1. Compile contracts and start a local chain**
 ```bash
 cd contracts
 anvil --host 127.0.0.1 --port 8545 &
@@ -23,19 +23,19 @@ forge create src/ColdChainVerifier.sol:ColdChainVerifier \
   --broadcast
 ```
 
-**2. Instalirati zavisnosti**
+**2. Install dependencies**
 ```bash
 cd backend  && npm install
 cd frontend && npm install
 cd circuits && npm install circomlib
 ```
 
-**3. Kompajlirati ZK circuit** (samo prvi put)
+**3. Compile the ZK circuit** (first time only)
 ```bash
 bash scripts/setup-circuit.sh
 ```
 
-**4. Pokrenuti backend i frontend**
+**4. Start backend and frontend**
 ```bash
 # Terminal 1
 cd backend && npm run dev
@@ -44,22 +44,22 @@ cd backend && npm run dev
 cd frontend && npm run dev
 ```
 
-Aplikacija je dostupna na [http://localhost:5173](http://localhost:5173)
+App is available at [http://localhost:5173](http://localhost:5173)
 
-## Temperaturni opsezi
+## Temperature ranges
 
-| Lijek | Min | Max |
-|-------|-----|-----|
-| Insulin, vakcine (rashladne) | 2°C | 8°C |
-| Zamrznute vakcine (MMR) | -20°C | -15°C |
-| Ambijentalni lijekovi | 15°C | 25°C |
+| Drug | Min | Max |
+|------|-----|-----|
+| Insulin, refrigerated vaccines | 2°C | 8°C |
+| Frozen vaccines (MMR) | -20°C | -15°C |
+| Ambient drugs | 15°C | 25°C |
 
-Sistem prihvata vrijednosti u rasponu **-40°C do +50°C**.
+The system accepts values in the range **-40°C to +50°C**.
 
-## Sequence dijagram
+## Sequence diagram
 
 ```
-Senzori          Backend              ZK Circuit          Blockchain
+Sensors          Backend              ZK Circuit          Blockchain
    |                |                     |                    |
    |  temperature   |                     |                    |
    |--------------->|                     |                    |
@@ -86,7 +86,7 @@ Senzori          Backend              ZK Circuit          Blockchain
    |                |  {txHash, verified} |                    |
    |                |<-----------------------------------------|
    |                |                     |                    |
- Korisnik         REST                                      Solidity
+  Client          REST                                      Solidity
    |                |                     |                    |
    |  GET /proof    |                     |                    |
    |--------------->|                     |                    |
@@ -94,13 +94,13 @@ Senzori          Backend              ZK Circuit          Blockchain
    |<---------------|                     |                    |
 ```
 
-## Tehnologije
+## Stack
 
-| Sloj | Tehnologija |
-|------|------------|
-| ZK dokazi | Circom 2.0, Groth16, snarkjs |
+| Layer | Technology |
+|-------|-----------|
+| ZK proofs | Circom 2.0, Groth16, snarkjs |
 | Hash | Poseidon (circomlibjs) |
 | Backend | Node.js, Express, SQLite |
 | Frontend | React 18, Vite, Recharts |
 | Chain | Solidity 0.8.20, Foundry, Anvil |
-| Kriptografija | BN128 eliptička krivulja |
+| Cryptography | BN128 elliptic curve |
